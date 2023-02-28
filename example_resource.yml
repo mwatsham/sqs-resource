@@ -1,0 +1,17 @@
+resource_types:
+  - name: sqs
+    type: registry-image
+    source:
+      repository: CONTAINER-PATH
+
+resources:
+  - name: sqs-queue
+    type: sqs
+    source:
+      sqs_queue: SQS-QUEUE-NAME
+      access_key_id: ACCESS-KEY
+      secret_access_key: SECRET
+      region: REGION
+      role_arn: ROLE-ARN
+      dest_file: DEST-FILE
+      msg_attributes: [ATTRIBUTES]
