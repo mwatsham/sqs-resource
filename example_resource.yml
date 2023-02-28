@@ -8,7 +8,7 @@ resources:
   - name: sqs-queue
     type: sqs
     source:
-      sqs_queue: SQS-QUEUE-NAME
+      sqs_queue_name: SQS-QUEUE-NAME
       access_key_id: ACCESS-KEY
       secret_access_key: SECRET
       region: REGION
