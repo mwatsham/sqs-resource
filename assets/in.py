@@ -23,6 +23,13 @@ def _receive_sqs_msg(sqs, sqs_queue_name, attributes):
             if msg.message_attributes.get(attribute) is not None:
                 attribute_value = msg.message_attributes.get(attribute).get('StringValue')
                 msg_attributes[attribute] = attribute_value
+        msg_attributes['msg_id'] = msg.message_id
+        try:
+            msg_attributes['msg_body'] = json.loads(msg.body)
+        except ValueError:
+            msg_attributes['msg_body'] = msg.body
+
+
         received_messages.append(msg_attributes)
         msg.delete()
     return received_messages
@@ -37,7 +44,7 @@ def _in(content, dest_dir, dest_file):
 def _main(in_stream, dest_dir='.'):
     payload = json.load(in_stream)
     resource_source = payload['source']
-    version = payload['version']['key']
+    version = payload['version']['msg_id']
 
     role_arn = resource_source['role_arn']
     access_key_id = resource_source['access_key_id']
@@ -57,11 +64,11 @@ def _main(in_stream, dest_dir='.'):
 
     _in(content, dest_dir, dest_file)
 
-    print(json.dumps({"version": {"key": version}, "metadata": content}))
+    print(json.dumps({"version": {"msg_id": version}, "metadata": content}))
 
 
 if __name__ == '__main__':
-    _main(sys.stdin,sys.argv[1])
+    _main(sys.stdin, sys.argv[1])
     #dest_dir = '.'
     #source = {
     #    'source': {

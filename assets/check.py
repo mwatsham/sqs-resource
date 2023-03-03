@@ -9,16 +9,16 @@ from common import *
 def _check_sqs_msg(sqs, sqs_queue_name, attributes):
     sqs_queue = sqs.get_queue_by_name(QueueName=sqs_queue_name)
     messages = sqs_queue.receive_messages(
-        MaxNumberOfMessages=1,
+        MaxNumberOfMessages=10,
         MessageAttributeNames=attributes,
         VisibilityTimeout=0,
         WaitTimeSeconds=0
     )
-    msg_id = ''
+    msg_id = []
     for msg in messages:
         if msg.message_attributes is not None:
-            msg_id = msg.message_id
-    return [{'version': str(msg_id)}]
+            msg_id.append({"msg_id": str(msg.message_id)})
+    return msg_id
 
 
 def _main(in_stream):
