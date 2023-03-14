@@ -6,37 +6,34 @@ import sys
 
 from common import *
 
-# Function: _receive_sqs_msg
+# Function: _process_sqs_msg
 # Parameters:
-#   - sqs: boto3 SQS  Resource Session object
+#   - sqs_client: boto3 low-level SQS Client object
 #   - sqs_queue_name:
 #   - attributes:
-# Description:
-def _process_sqs_msgs(sqs_client, sqs_queue_name, attributes):
-    msgs = get_sqs_msgs(sqs_client, sqs_queue_name, attributes)
+# Description: Function to process messages from SQS Message Queue
+def _process_sqs_msgs(sqs_client, sqs_queue_name, attributes, group_id):
+    msgs = get_sqs_msgs(sqs_client, sqs_queue_name, attributes, group_id)
 
     received_messages = []
-    debug_msg(msgs)
+
     if msgs:
         for msg in msgs:
             msg_attributes = {}
 
+            for attribute in msg.get("MessageAttributes").keys():
+                attribute_value = msg["MessageAttributes"][attribute]["StringValue"]
+                msg_attributes[attribute] = attribute_value
+
+            msg_attributes['msg_id'] = msg.get("MessageId")
+
+            # If message body is valid JSON, format it as JSON, else dump out as is.
             try:
-                if check_attributes(attributes, msg.get("MessageAttributes").keys()):
-                    for attribute in msg.get("MessageAttributes").keys():
-                        attribute_value = msg["MessageAttributes"][attribute]["StringValue"]
-                        msg_attributes[attribute] = attribute_value
-                    msg_attributes['msg_id'] = msg.get("MessageId")
+                msg_attributes['msg_body'] = json.loads(msg.get("Body"))
+            except ValueError:
+                 msg_attributes['msg_body'] = msg.get("Body")
 
-                    # If message body is valid JSON, format it as JSON, else dump out as is.
-                    try:
-                        msg_attributes['msg_body'] = json.loads(msg.get("Body"))
-                    except ValueError:
-                        msg_attributes['msg_body'] = msg.get("Body")
-
-                    received_messages.append(msg_attributes)
-            except AttributeError:
-                received_messages.append(msg_attributes)
+            received_messages.append(msg_attributes)
 
             delete_sqs_msg(sqs_client, sqs_queue_name, msg.get("ReceiptHandle"))
     return received_messages
@@ -58,6 +55,7 @@ def _main(in_stream, dest_dir='.'):
     secret_access_key = resource_source['secret_access_key']
     region = resource_source['region']
     sqs_queue_name = resource_source['sqs_queue_name']
+    msg_group_id = resource_source['msg_group_id']
     msg_attributes = resource_source['msg_attributes']
     dest_file = resource_source['dest_file']
 
@@ -67,10 +65,10 @@ def _main(in_stream, dest_dir='.'):
     # Get new client session using temporary STS credentials
     temp_session_response = temp_session(sts_response, region)
 
-    #
-    sqs = sqs_client(temp_session_response)
+    # Return SQS Client
+    sqs_response = sqs_client(temp_session_response)
 
-    content = _process_sqs_msgs(sqs, sqs_queue_name, msg_attributes)
+    content = _process_sqs_msgs(sqs_response, sqs_queue_name, msg_attributes, msg_group_id)
 
     _in(content, dest_dir, dest_file)
 

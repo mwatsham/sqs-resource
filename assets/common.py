@@ -55,10 +55,11 @@ def sqs_client(session):
     return sqs
 
 
-def get_sqs_msgs(sqs_client, sqs_queue_name, attributes, max_messages=10, visibility_time=10, wait_time=10):
+def get_sqs_msgs(sqs_client, sqs_queue_name, attributes=[], group_id="", max_messages=10, visibility_time=10, wait_time=10):
     sqs_url = sqs_client.get_queue_url(QueueName=sqs_queue_name)
     response = sqs_client.receive_message(
         QueueUrl=sqs_url["QueueUrl"],
+        AttributeNames=["MessageGroupId"],
         MaxNumberOfMessages=max_messages,
         MessageAttributeNames=attributes,
         VisibilityTimeout=visibility_time,
@@ -66,10 +67,14 @@ def get_sqs_msgs(sqs_client, sqs_queue_name, attributes, max_messages=10, visibi
     )
 
     msgs = []
-
     if response.get("Messages") is not None:
         for msg in response.get("Messages"):
-            msgs.append(msg)
+            # Catch exception where message has empty 'MessageAttributes'
+            try:
+                if msg["Attributes"]["MessageGroupId"] == group_id and check_attributes(attributes, msg.get("MessageAttributes").keys()):
+                    msgs.append(msg)
+            except AttributeError:
+                return msgs
 
     return msgs
 

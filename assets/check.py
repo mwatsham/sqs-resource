@@ -6,14 +6,14 @@ import sys
 from common import *
 
 
-def _check_sqs_msg(sqs_client, sqs_queue_name, attributes):
+def _check_sqs_msg(sqs_client, sqs_queue_name, attributes, group_id):
     # Note that the message attributes visibility and waitfortime are set to 0
     # as this is only checking to see if new messages exist. There is no need to
     # hide message.
-    msgs = get_sqs_msgs(sqs_client, sqs_queue_name, attributes, visibility_time=0, wait_time=0)
+    msgs = get_sqs_msgs(sqs_client, sqs_queue_name, attributes, group_id, visibility_time=0, wait_time=0)
 
     msg_id = []
-    debug_msg(msgs)
+
     # Check if SQS messages exist
     if msgs:
         for msg in msgs:
@@ -31,6 +31,7 @@ def _main(in_stream):
     secret_access_key = resource_source['secret_access_key']
     region = resource_source['region']
     sqs_queue_name = resource_source['sqs_queue_name']
+    msg_group_id = resource_source['msg_group_id']
     msg_attributes = resource_source['msg_attributes']
 
     sts_response = sts_session(role_arn, access_key_id, secret_access_key)
@@ -39,19 +40,8 @@ def _main(in_stream):
 
     sqs = sqs_client(temp_session_response)
 
-    print(json.dumps(_check_sqs_msg(sqs, sqs_queue_name, msg_attributes)))
+    print(json.dumps(_check_sqs_msg(sqs, sqs_queue_name, msg_attributes, msg_group_id)))
 
 
 if __name__ == '__main__':
     _main(sys.stdin)
-    #source = {
-    #    "source": {
-    #        "sqs_queue_name": os.environ.get('AWS_SQS_QUEUE_NAME'),
-    #        "access_key_id": os.environ.get('AWS_ACCESS_KEY_ID'),
-    #        "secret_access_key": os.environ.get('AWS_SECRET_ACCESS_KEY'),
-    #        "role_arn": os.environ.get('AWS_ROLE_ARN')
-    #    },
-    #    "version": None
-    #}
-
-    #_main(json.dumps(source))
