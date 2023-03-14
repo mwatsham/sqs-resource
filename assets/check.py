@@ -6,18 +6,16 @@ import sys
 from common import *
 
 
-def _check_sqs_msg(sqs, sqs_queue_name, attributes):
-    sqs_queue = sqs.get_queue_by_name(QueueName=sqs_queue_name)
-    messages = sqs_queue.receive_messages(
-        MaxNumberOfMessages=10,
-        MessageAttributeNames=attributes,
-        VisibilityTimeout=0,
-        WaitTimeSeconds=0
-    )
+def _check_sqs_msg(sqs_client, sqs_queue_name, attributes):
+    msgs = get_sqs_msgs(sqs_client, sqs_queue_name, attributes)
+
     msg_id = []
-    for msg in messages:
-        if msg.message_attributes is not None:
-            msg_id.append({"msg_id": str(msg.message_id)})
+
+    # Check if SQS messages exist
+    if msgs:
+        for msg in msgs:
+            msg_id.append({"msg_id": msg.get("MessageId")})
+
     return msg_id
 
 
@@ -34,9 +32,9 @@ def _main(in_stream):
 
     sts_response = sts_session(role_arn, access_key_id, secret_access_key)
 
-    temp_session_response = new_session(sts_response, region)
+    temp_session_response = temp_session(sts_response, region)
 
-    sqs = sqs_resource(temp_session_response)
+    sqs = sqs_client(temp_session_response)
 
     print(json.dumps(_check_sqs_msg(sqs, sqs_queue_name, msg_attributes)))
 

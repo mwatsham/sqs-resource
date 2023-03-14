@@ -6,32 +6,34 @@ import sys
 
 from common import *
 
+# Function: _receive_sqs_msg
+# Parameters:
+#   - sqs: boto3 SQS  Resource Session object
+#   - sqs_queue_name:
+#   - attributes:
+# Description:
+def _process_sqs_msgs(sqs_client, sqs_queue_name, attributes):
+    msgs = get_sqs_msgs(sqs_client, sqs_queue_name, attributes)
 
-def _receive_sqs_msg(sqs, sqs_queue_name, attributes):
-    sqs_queue = sqs.get_queue_by_name(QueueName=sqs_queue_name)
-    messages = sqs_queue.receive_messages(
-        MaxNumberOfMessages=10,
-        MessageAttributeNames=attributes,
-        VisibilityTimeout=10,
-        WaitTimeSeconds=0
-    )
     received_messages = []
-    for msg in messages:
-        attribute_value = ""
-        msg_attributes = {}
-        for attribute in attributes:
-            if msg.message_attributes.get(attribute) is not None:
-                attribute_value = msg.message_attributes.get(attribute).get('StringValue')
+
+    if msgs:
+        for msg in msgs:
+            msg_attributes = {}
+
+            for attribute in msg.get("MessageAttributes").keys():
+                attribute_value = msg["MessageAttributes"][attribute]["StringValue"]
                 msg_attributes[attribute] = attribute_value
-        msg_attributes['msg_id'] = msg.message_id
-        try:
-            msg_attributes['msg_body'] = json.loads(msg.body)
-        except ValueError:
-            msg_attributes['msg_body'] = msg.body
+            msg_attributes['msg_id'] = msg.get("MessageId")
 
+            # If message body is valid JSON format it as JSON, else dump out as is.
+            try:
+                msg_attributes['msg_body'] = json.loads(msg.get("Body"))
+            except ValueError:
+                msg_attributes['msg_body'] = msg.get("Body")
 
-        received_messages.append(msg_attributes)
-        msg.delete()
+            received_messages.append(msg_attributes)
+            delete_sqs_msg(sqs_client, sqs_queue_name, msg.get("ReceiptHandle"))
     return received_messages
 
 
@@ -54,13 +56,16 @@ def _main(in_stream, dest_dir='.'):
     msg_attributes = resource_source['msg_attributes']
     dest_file = resource_source['dest_file']
 
+    # Get STS credentials for assume role
     sts_response = sts_session(role_arn, access_key_id, secret_access_key)
 
-    temp_session_response = new_session(sts_response, region)
+    # Get new client session using temporary STS credentials
+    temp_session_response = temp_session(sts_response, region)
 
-    sqs = sqs_resource(temp_session_response)
+    #
+    sqs = sqs_client(temp_session_response)
 
-    content = _receive_sqs_msg(sqs, sqs_queue_name, msg_attributes)
+    content = _process_sqs_msgs(sqs, sqs_queue_name, msg_attributes)
 
     _in(content, dest_dir, dest_file)
 
@@ -69,17 +74,3 @@ def _main(in_stream, dest_dir='.'):
 
 if __name__ == '__main__':
     _main(sys.stdin, sys.argv[1])
-    #dest_dir = '.'
-    #source = {
-    #    'source': {
-    #        'sqs_queue_name': os.environ.get('AWS_SQS_QUEUE_NAME'),
-    #        'access_key_id': os.environ.get('AWS_ACCESS_KEY_ID'),
-    #        'secret_access_key': os.environ.get('AWS_SECRET_ACCESS_KEY'),
-    #        'role_arn': os.environ.get('AWS_ROLE_ARN'),
-    #        'msg_attributes': ['Hostname'],
-    #        'dest_file': 'vm_hosts.json'
-    #    },
-    #    "version": {"key": None}
-    #}
-
-    # _main(json.dumps(source), dest_dir)
