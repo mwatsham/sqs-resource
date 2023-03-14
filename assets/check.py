@@ -7,14 +7,17 @@ from common import *
 
 
 def _check_sqs_msg(sqs_client, sqs_queue_name, attributes):
-    msgs = get_sqs_msgs(sqs_client, sqs_queue_name, attributes)
+    # Note that the message attributes visibility and waitfortime are set to 0
+    # as this is only checking to see if new messages exist. There is no need to
+    # hide message.
+    msgs = get_sqs_msgs(sqs_client, sqs_queue_name, attributes, visibility_time=0, wait_time=0)
 
     msg_id = []
-
+    debug_msg(msgs)
     # Check if SQS messages exist
     if msgs:
         for msg in msgs:
-            msg_id.append({"msg_id": msg.get("MessageId")})
+            msg_id.append({"msg_id": str(msg.get("MessageId"))})
 
     return msg_id
 

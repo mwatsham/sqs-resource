@@ -1,4 +1,24 @@
 import boto3
+import sys
+from pprint import pprint
+
+
+# Function to output messages to stderr. Useful for
+# troubleshooting in Concourse CI
+def debug_msg(msg, *args, **kwargs):
+    if isinstance(msg, (dict, list)):
+        pprint(msg, stream=sys.stderr)  # a way of pretty printing dictionaries that needs to be imported
+    else:
+        print(msg.format(*args, **kwargs), file=sys.stderr)  # printing to standard-error so Concourse will ignore it
+
+
+# Function to check that the defined source attributes
+# are provided in the message attributes
+def check_attributes(defined_attributes, msg_attributes):
+    for attribute in defined_attributes:
+        if attribute not in msg_attributes:
+            return False
+    return True
 
 
 def sts_session(role_arn, access_key, secret_key):
@@ -35,14 +55,14 @@ def sqs_client(session):
     return sqs
 
 
-def get_sqs_msgs(sqs_client, sqs_queue_name, attributes):
+def get_sqs_msgs(sqs_client, sqs_queue_name, attributes, max_messages=10, visibility_time=10, wait_time=10):
     sqs_url = sqs_client.get_queue_url(QueueName=sqs_queue_name)
     response = sqs_client.receive_message(
         QueueUrl=sqs_url["QueueUrl"],
-        MaxNumberOfMessages=10,
+        MaxNumberOfMessages=max_messages,
         MessageAttributeNames=attributes,
-        VisibilityTimeout=2,
-        WaitTimeSeconds=0
+        VisibilityTimeout=visibility_time,
+        WaitTimeSeconds=wait_time
     )
 
     msgs = []

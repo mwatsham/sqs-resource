@@ -16,23 +16,28 @@ def _process_sqs_msgs(sqs_client, sqs_queue_name, attributes):
     msgs = get_sqs_msgs(sqs_client, sqs_queue_name, attributes)
 
     received_messages = []
-
+    debug_msg(msgs)
     if msgs:
         for msg in msgs:
             msg_attributes = {}
 
-            for attribute in msg.get("MessageAttributes").keys():
-                attribute_value = msg["MessageAttributes"][attribute]["StringValue"]
-                msg_attributes[attribute] = attribute_value
-            msg_attributes['msg_id'] = msg.get("MessageId")
-
-            # If message body is valid JSON format it as JSON, else dump out as is.
             try:
-                msg_attributes['msg_body'] = json.loads(msg.get("Body"))
-            except ValueError:
-                msg_attributes['msg_body'] = msg.get("Body")
+                if check_attributes(attributes, msg.get("MessageAttributes").keys()):
+                    for attribute in msg.get("MessageAttributes").keys():
+                        attribute_value = msg["MessageAttributes"][attribute]["StringValue"]
+                        msg_attributes[attribute] = attribute_value
+                    msg_attributes['msg_id'] = msg.get("MessageId")
 
-            received_messages.append(msg_attributes)
+                    # If message body is valid JSON, format it as JSON, else dump out as is.
+                    try:
+                        msg_attributes['msg_body'] = json.loads(msg.get("Body"))
+                    except ValueError:
+                        msg_attributes['msg_body'] = msg.get("Body")
+
+                    received_messages.append(msg_attributes)
+            except AttributeError:
+                received_messages.append(msg_attributes)
+
             delete_sqs_msg(sqs_client, sqs_queue_name, msg.get("ReceiptHandle"))
     return received_messages
 
