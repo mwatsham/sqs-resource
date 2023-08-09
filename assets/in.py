@@ -6,14 +6,22 @@ import sys
 
 from common import *
 
+
 # Function: _process_sqs_msg
 # Parameters:
 #   - sqs_client: boto3 low-level SQS Client object
 #   - sqs_queue_name:
 #   - attributes:
 # Description: Function to process messages from SQS Message Queue
-def _process_sqs_msgs(sqs_client, sqs_queue_name, attributes, group_id):
-    msgs = get_sqs_msgs(sqs_client, sqs_queue_name, attributes, group_id)
+def _process_sqs_msgs(sqs_client, sqs_queue_name, attributes, group_id, implicit_get=False):
+    # 'implicit_get' used to determine if funtion call is part of the implicit get step
+    # invoked by a put step. If the call is part of a put step then we don't want SQS messages
+    # hidden or deleted from the SQS queue.
+    # Safeguard if 'no_get' is not specified in the put step.
+    if implicit_get:
+        msgs = get_sqs_msgs(sqs_client, sqs_queue_name, attributes, group_id, visibility_time=0, wait_time=0)
+    else:
+        msgs = get_sqs_msgs(sqs_client, sqs_queue_name, attributes, group_id)
 
     received_messages = []
 
@@ -31,11 +39,12 @@ def _process_sqs_msgs(sqs_client, sqs_queue_name, attributes, group_id):
             try:
                 msg_attributes['msg_body'] = json.loads(msg.get("Body"))
             except ValueError:
-                 msg_attributes['msg_body'] = msg.get("Body")
+                msg_attributes['msg_body'] = msg.get("Body")
 
             received_messages.append(msg_attributes)
 
-            delete_sqs_msg(sqs_client, sqs_queue_name, msg.get("ReceiptHandle"))
+            if not implicit_get:
+                delete_sqs_msg(sqs_client, sqs_queue_name, msg.get("ReceiptHandle"))
     return received_messages
 
 
@@ -47,7 +56,11 @@ def _in(content, dest_dir, dest_file):
 
 def _main(in_stream, dest_dir='.'):
     payload = json.load(in_stream)
-    resource_source = payload['source']
+    try:
+        resource_source = payload['source']
+    except NameError as e:
+        print(f'Error: Resource `source` not defined ({e})')
+
     version = payload['version']['msg_id']
 
     role_arn = resource_source['role_arn']
@@ -55,9 +68,9 @@ def _main(in_stream, dest_dir='.'):
     secret_access_key = resource_source['secret_access_key']
     region = resource_source['region']
     sqs_queue_name = resource_source['sqs_queue_name']
-    msg_group_id = resource_source['msg_group_id']
-    msg_attributes = resource_source['msg_attributes']
-    dest_file = resource_source['dest_file']
+    msg_group_id = resource_source.get('msg_group_id', '')
+    msg_attributes = resource_source.get('msg_attributes', '')
+    dest_file = resource_source.get('dest_file', 'messages.json')
 
     # Get STS credentials for assume role
     sts_response = sts_session(role_arn, access_key_id, secret_access_key)
