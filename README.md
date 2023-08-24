@@ -15,7 +15,14 @@
 * `region_name`: *Required.* The region the bucket is in. Defaults to
   `us-east-1`.
 
-* `msg_attributes`: *Required.* The SQS Message attributes used to filter messages from the SQS Queue.
+* `msg_attributes`: *Optional.* The SQS Message attributes used to filter messages from the SQS Queue.
+
+* `msg_group_id`: *Required for SQS FIFO queues.* The SQS group id tag that specifies that a message belongs 
+  to a specific message group. Messages that belong to the same message group are always processed one by one, 
+  in a strict order relative to the message group.
+
+* `dest_file`: *Optional.* Default: `messages.json`, File to capture JSON formatted output of messages attributes and
+  message body.
 
 ## Behaviour
 ### `check`: Check for new messages on SQS Queue
