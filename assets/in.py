@@ -55,38 +55,25 @@ def _in(content, dest_dir, dest_file):
 
 
 def _main(in_stream, dest_dir='.'):
-    payload = json.load(in_stream)
-    try:
-        resource_source = payload['source']
-    except NameError as e:
-        print(f'Error: Resource `source` not defined ({e})')
-
-    version = payload['version']['msg_id']
-
-    role_arn = resource_source['role_arn']
-    access_key_id = resource_source['access_key_id']
-    secret_access_key = resource_source['secret_access_key']
-    region = resource_source['region']
-    sqs_queue_name = resource_source['sqs_queue_name']
-    msg_group_id = resource_source.get('msg_group_id', '')
-    msg_attributes = resource_source.get('msg_attributes', '')
-    dest_file = resource_source.get('dest_file', 'messages.json')
+    print(in_stream, file=sys.stderr)
+    payload = process_payload(json.loads(in_stream))
 
     # Get STS credentials for assume role
-    sts_response = sts_session(role_arn, access_key_id, secret_access_key)
+    sts_response = sts_session(payload['role_arn'], payload['access_key_id'], payload['secret_access_key'])
 
     # Get new client session using temporary STS credentials
-    temp_session_response = temp_session(sts_response, region)
+    temp_session_response = temp_session(sts_response, payload['region'])
 
     # Return SQS Client
-    sqs_response = sqs_client(temp_session_response)
+    aws_client = sqs_client(temp_session_response)
 
-    content = _process_sqs_msgs(sqs_response, sqs_queue_name, msg_attributes, msg_group_id)
+    content = _process_sqs_msgs(aws_client, payload['sqs_queue_name'], payload['msg_attributes'], payload['msg_group_id'])
 
-    _in(content, dest_dir, dest_file)
+    _in(content, dest_dir, payload['dest_file'])
 
-    print(json.dumps({"version": {"msg_id": version}, "metadata": content}))
+    print(json.dumps({"version": payload['version'], "metadata": content}))
 
 
 if __name__ == '__main__':
-    _main(sys.stdin, sys.argv[1])
+    source = sys.stdin.read()
+    _main(source, sys.argv[1])

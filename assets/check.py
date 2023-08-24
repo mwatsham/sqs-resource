@@ -6,11 +6,11 @@ import sys
 from common import *
 
 
-def _check_sqs_msg(sqs_client, sqs_queue_name, attributes, group_id):
+def _check_sqs_msg(client, sqs_queue_name, attributes, group_id=""):
     # Note that the message attributes visibility and waitfortime are set to 0
     # as this is only checking to see if new messages exist. There is no need to
     # hide message.
-    msgs = get_sqs_msgs(sqs_client, sqs_queue_name, attributes, group_id, visibility_time=0, wait_time=0)
+    msgs = get_sqs_msgs(client, sqs_queue_name, attributes, group_id, visibility_time=0, wait_time=0)
 
     msg_id = []
 
@@ -23,25 +23,29 @@ def _check_sqs_msg(sqs_client, sqs_queue_name, attributes, group_id):
 
 
 def _main(in_stream):
-    payload = json.load(in_stream)
-    resource_source = payload['source']
+    print(in_stream, file=sys.stderr)
 
-    role_arn = resource_source['role_arn']
-    access_key_id = resource_source['access_key_id']
-    secret_access_key = resource_source['secret_access_key']
-    region = resource_source['region']
-    sqs_queue_name = resource_source['sqs_queue_name']
-    msg_group_id = resource_source['msg_group_id']
-    msg_attributes = resource_source['msg_attributes']
+    payload = process_payload(json.loads(in_stream))
 
-    sts_response = sts_session(role_arn, access_key_id, secret_access_key)
+    # Get STS credentials for assume role
+    sts_response = sts_session(payload['role_arn'], payload['access_key_id'], payload['secret_access_key'])
 
-    temp_session_response = temp_session(sts_response, region)
+    # Get new client session using temporary STS credentials
+    temp_session_response = temp_session(sts_response, payload['region'])
 
-    sqs = sqs_client(temp_session_response)
+    # Return SQS Client
+    aws_client = sqs_client(temp_session_response)
 
-    print(json.dumps(_check_sqs_msg(sqs, sqs_queue_name, msg_attributes, msg_group_id)))
+    versions = _check_sqs_msg(
+        aws_client,
+        payload['sqs_queue_name'],
+        payload['msg_attributes'],
+        payload['msg_group_id']
+    )
+
+    print(json.dumps(versions))
 
 
 if __name__ == '__main__':
-    _main(sys.stdin)
+    source = sys.stdin.read()
+    _main(source)
