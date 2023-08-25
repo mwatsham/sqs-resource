@@ -1,5 +1,24 @@
 # AWS SQS Message Resource
 
+## Concept
+In the context of AWS SQS message queues the Concourse CI Resource Type check , in , and out  scripts will be used as follows...
+
+### `check` 
+  * Will poll a specified AWS SQS queue for new messages.
+  * Treats the discovery of new messages as a 'new version'.
+  * Outputs an array of SQS Message IDs for new messages up to a default maximum of 10 messages (AWS SQS Message Quotas) per check invocation. 
+### `in` 
+  * Uses the destination directory passed in as command line argument $1 as the destination for JSON file that will contain the consumed AWS SQS messages.
+  * Consumes and removes up to a default maximum of 10 messages (AWS SQS Message Quotas) per in  invocation for the a specified AWS SQS queue. 
+  * Writes a file in the destination directory supplied argument $1  that contains a JSON array of the messages consumed from the AWS SQS queue. The intention is that this directory and file can be made available to the Concourse CI pipeline. The message JSON file contents can then be consumed as desired in the pipeline jobs/tasks.
+### `out` 
+  * Offers the ability to post messages to a specified AWS SQS queue.
+  * The intention is to invoke the out script to capture Concourse CI on_success and on_failure events.
+  * Offers the capability to output message attributes and message body content via Concourse CI put 'params'.
+  * Offers the capability to include Concourse CI task output file content as part of the message body.
+  * Message body can formatted in either text, JSON, or XML.
+
+
 ## Source configuration
 * `sqs_queue`: *Required.* The name of the SQS Queue.
 
@@ -32,7 +51,6 @@ Retrieves new messages posted to the SQS Queue.
 ### `out`: Post messages to SQS Queue
 Post messages to the SQS Queue.
 
-**To be developed**
 
 ## Development testing (Command Line)
 ### `check`
